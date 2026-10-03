@@ -69,63 +69,34 @@ class Hero():
             print("You have encountered a {minion} prepare to fight!\n".format(minion = minion.name))
             combat = True
             while combat == True:
-                try:
-                    # We let the player know how much hp he has and how many potions he was at the beggining of this turn.
-                    print(f'{"HP:":7}  {"{health}/{maxhealth}"}'.format(health = self.health, maxhealth = self.maxhealth))
-                    print(f'{"Potions:":7}  {"{potions}"}'.format(potions = self.potions))
-                    # We ask the player if he wants to attack or drink a potion.
-                    decision = int(input('\nIt\'s your turn {hero} what do you want to do?\n1. Attack\n2. Use potion\n'.format(hero = self.name)))
-                    match decision:
-                        case 1:
-                            clear()
-                            # If the player chooses 1 then we start the combat by attacking the minion using the attack_enemy method.
-                            combat = self.attack_enemy(minion)
-                            # If the minion has any HP left the attack enemy function will return True in which case it's the minion's turn
-                            if combat == True:
-                                # The minion attacks the player.
-                                print("\nCarefull {enemy} is attacking now!\n".format(enemy = minion.name))
-                                # If the player has no more hp after the damage calculation then combat will be set to False and the Hero will be returned to the village.
-                                combat = minion.attack_hero(self)
-                            # If the minion does not have any HP left it means the player won the combat.
-                            else:
-                                del minion
-                                # Increase the counter of how many monsters the player has killed.
-                                self.monsterskilled += 1
-                                # Give the player experience for winning the combat.
-                                self.exp += 5
-                                # If the player is at his max level he won't get any more exp points.
-                                if self.lvl == 30: self.exp = 0
-                                # Give the player 1 to 3 $ for winning the combat.
-                                self.money += randint(1,3)
-                                # Tell the player how many money he has now
-                                print ("You got {money}$ now.\n".format(money = self.money))
-                                # The player has 1/4 chances of getting some potions if he doesn't have the maximum amount of potions already (10)
-                                if (random()*100 < 25 and self.potions < 10):
-                                        # The player could get one or two potions from the minion.
-                                        random_potions = randint (1, 2)
-                                        print("What's that? It seems like the monster was carrying some potions.\n\nYou got {potions} more potion(s)".format(potions = random_potions))
-                                        # Add the potions that the minion left to the player potions
-                                        self.potions += random_potions
-                                        if self.potions > 10: 
-                                            self.potions = 10
-                                            print("\n\nYou have got the maximum amount of potions you will have to leave some behind.\n")
-                                # When the player hits 10 exp we will get a new level and reset his exp. The level_up method manages this.
-                                if self.exp >= 10:
-                                    self.level_up()
-
-                        case 2:
-                            clear()
-                            # If the player choose to use a potion we call the use_potion method.
-                            self.use_potion()
-                        case _:
-                            # In case the player writes a number other than 1 or 2
-                            print("Please type only 1 or 2 on your keyboard to choose an option.")
-                            continue
-                except ValueError:
-                    # In case the player writes a value that is not a number
-                    print("Sorry we didn't get that please try again.")
+                combat = resolve_combat_round(self, minion)
             # If the player has no more hp left then leave the combat logic.
             if self.health == 0: break
+            if minion.health == 0:
+                del minion
+                # Increase the counter of how many monsters the player has killed.
+                self.monsterskilled += 1
+                # Give the player experience for winning the combat.
+                self.exp += 5
+                # If the player is at his max level he won't get any more exp points.
+                if self.lvl == 30: self.exp = 0
+                # Give the player 1 to 3 $ for winning the combat.
+                self.money += randint(1,3)
+                # Tell the player how many money he has now
+                print ("You got {money}$ now.\n".format(money = self.money))
+                # The player has 1/4 chances of getting some potions if he doesn't have the maximum amount of potions already (10)
+                if (random()*100 < 25 and self.potions < 10):
+                        # The player could get one or two potions from the minion.
+                        random_potions = randint (1, 2)
+                        print("What's that? It seems like the monster was carrying some potions.\n\nYou got {potions} more potion(s)".format(potions = random_potions))
+                        # Add the potions that the minion left to the player potions
+                        self.potions += random_potions
+                        if self.potions > 10:
+                            self.potions = 10
+                            print("\n\nYou have got the maximum amount of potions you will have to leave some behind.\n")
+                # When the player hits 10 exp we will get a new level and reset his exp. The level_up method manages this.
+                if self.exp >= 10:
+                    self.level_up()
             # Keep asking the player what he wants to do until he chooses a valid answer.
             while True:
                 try:
@@ -298,6 +269,53 @@ class Minion():
             crit = self.crit()
             return (hero.lose_health(round((self.maxhealth * 0.75 + self.attack) - (hero.maxhealth * 0.5 + hero.defense))*crit))
 
+def combat_turn_order(hero, minion):
+    return sorted(
+        [hero, minion],
+        key=lambda combatant: (combatant.speed, combatant.critchance),
+        reverse=True
+    )
+
+def resolve_combat_round(hero, minion):
+    for combatant in combat_turn_order(hero, minion):
+        if combatant is minion:
+            print("\nCarefull {enemy} is attacking now!\n".format(enemy = minion.name))
+            if not minion.attack_hero(hero):
+                return False
+            continue
+
+        while True:
+            try:
+                print(f'{"HP:":7}  {"{health}/{maxhealth}"}'.format(health = hero.health, maxhealth = hero.maxhealth))
+                print(f'{"Potions:":7}  {"{potions}"}'.format(potions = hero.potions))
+                decision = int(input('\nIt\'s your turn {hero} what do you want to do?\n1. Attack\n2. Use potion\n'.format(hero = hero.name)))
+                match decision:
+                    case 1:
+                        clear()
+                        if not hero.attack_enemy(minion):
+                            return False
+                        break
+                    case 2:
+                        clear()
+                        hero.use_potion()
+                        return True
+                    case _:
+                        print("Please type only 1 or 2 on your keyboard to choose an option.")
+                        continue
+            except ValueError:
+                print("Sorry we didn't get that please try again.")
+    return True
+
+def create_scaled_minion(name, attack, defense, speed, critchance, health, scale):
+    return Minion(
+        name = name,
+        attack = round(attack * scale),
+        defense = round(defense * scale),
+        speed = round(speed * scale),
+        critchance = round(critchance * scale),
+        health = round(health * scale)
+    )
+
 # The spawnminion function will create minions for the player to fight against as the player progresses the enemies will be stronger.
 def spawnminion(attack, defense, speed, critchance, maxhealth, lvl):
     # Depending of the lvl of the minion to be created we:
@@ -316,32 +334,37 @@ def spawnminion(attack, defense, speed, critchance, maxhealth, lvl):
             index = randint(0,6)
             lower_stats = randint(75,80)
             percentage_lower_stats = lower_stats/100
-            return Minion(minion_list[index], round(attack*percentage_lower_stats), round(defense*percentage_lower_stats), round(speed * percentage_lower_stats), round(critchance * percentage_lower_stats), round(maxhealth * percentage_lower_stats))
+            return create_scaled_minion(minion_list[index], attack, defense, speed, critchance, maxhealth, percentage_lower_stats)
         case 2:
             index = randint(7,13)
             lower_stats = randint(80,85)
             percentage_lower_stats = lower_stats/100
-            return Minion(minion_list[index], round(attack*percentage_lower_stats), round(defense*percentage_lower_stats), round(speed * percentage_lower_stats), round(critchance * percentage_lower_stats), round(maxhealth * percentage_lower_stats))
+            return create_scaled_minion(minion_list[index], attack, defense, speed, critchance, maxhealth, percentage_lower_stats)
         case 3:
             index = randint(14,20)
             lower_stats = randint(85,90)
             percentage_lower_stats = lower_stats/100
-            return Minion(minion_list[index], round(attack*percentage_lower_stats), round(defense*percentage_lower_stats), round(speed * percentage_lower_stats), round(critchance * percentage_lower_stats), round(maxhealth * percentage_lower_stats))
+            return create_scaled_minion(minion_list[index], attack, defense, speed, critchance, maxhealth, percentage_lower_stats)
         case 4:
             percentage_lower_stats = 95/100
-            return Minion('Abadon', round(attack*percentage_lower_stats), round(defense*percentage_lower_stats), round(speed * percentage_lower_stats), round(critchance * percentage_lower_stats), round(maxhealth * percentage_lower_stats))
+            return create_scaled_minion('Abadon', attack, defense, speed, critchance, maxhealth, percentage_lower_stats)
         case 5:
             percentage_lower_stats = 1
-            return Minion('Mammon', round(attack*percentage_lower_stats), round(defense*percentage_lower_stats), round(speed * percentage_lower_stats), round(critchance * percentage_lower_stats), round(maxhealth * percentage_lower_stats))
+            return create_scaled_minion('Mammon', attack, defense, speed, critchance, maxhealth, percentage_lower_stats)
         case 6:
             percentage_lower_stats = 105/100
-            return Minion('Belphegor', round(attack*percentage_lower_stats), round(defense*percentage_lower_stats), round(speed * percentage_lower_stats), round(critchance * percentage_lower_stats), round(maxhealth * percentage_lower_stats))
+            return create_scaled_minion('Belphegor', attack, defense, speed, critchance, maxhealth, percentage_lower_stats)
         case 7:
             percentage_lower_stats = 110/100
-            return Minion('Lucifer', round(attack*percentage_lower_stats), round(defense*percentage_lower_stats), round(speed * percentage_lower_stats), round(critchance * percentage_lower_stats), round(maxhealth * percentage_lower_stats))
+            return create_scaled_minion('Lucifer', attack, defense, speed, critchance, maxhealth, percentage_lower_stats)
 
 # Where the magic starts.
+def reset_game_state():
+    for boss in boss_defeat:
+        boss_defeat[boss] = False
+
 def village():
+    reset_game_state()
     #Printing a welcome message for the player:
     welcome_message()
     clear()
@@ -360,7 +383,8 @@ def village():
         # Whenever the hero returns to the village he recovers his health.
         hero.health = hero.maxhealth
         # We check if the player has defeated all the bosses of the game with the game_over function.
-        game_over(hero)
+        if game_over(hero):
+            return
         try:
             # Prompt the player on what he wants to do now.
             decision = int(input("Where do you want to go now {hero}?\n1. Training grounds\n2. Store\n3. Check my stat points\n4. Battle Boss\n5. Exit\n".format(hero = hero.name)))
@@ -426,7 +450,8 @@ def game_over(hero):
         input("Press Enter to finish the game.")
         system('start winner.txt')
         system('start https://youtu.be/ym_jVTcBxSU')
-        exit()
+        return True
+    return False
 
 # If the player chooses the boss function will execute.
 def boss(hero):
@@ -467,79 +492,52 @@ def boss(hero):
             print("\nYou face the Demon King himself: {name}, embrace yourself!\n".format(name = minion.name))
     combat = True
     while combat == True:
-        try:
-            # We let the player know how much HP he has and how many potions he was at the beggining of this turn.
-            print(f'{"HP:":7}  {"{health}/{maxhealth}"}'.format(health = hero.health, maxhealth = hero.maxhealth))
-            print(f'{"Potions:":7}  {"{potions}"}'.format(potions = hero.potions))
-            # We ask the player if he wants to attack or drink a potion.
-            decision = int(input('\nIt\'s your turn {hero} what do you want to do?\n1. Attack\n2. Use potion\n'.format(hero = hero.name)))
-            match decision:
-                case 1:
-                    clear()
-                    # If the player chooses 1 then we start the combat by attacking the boss using the attack_enemy method.
-                    combat = hero.attack_enemy(minion)
-                    # If the boss has any HP left the attack enemy function will return True in which case it's the boss' turn
-                    if combat == True:
-                        # The minion attacks the player.
-                        print("\nCarefull {enemy} is attacking now!\n".format(enemy = minion.name))
-                        combat = minion.attack_hero(hero)
-                    # If the boss does not have any HP left it means the player won the combat.
-                    else:
-                        del minion
-                        match boss_level:
-                            case 4:
-                                # Change the status of wheter the boss has been defeated to True.
-                                boss_defeat[1] = True
-                                # Give the player experience for winning the combat.
-                                hero.exp += 11
-                                # Give the player money for winning the combat.
-                                hero.money += 10
-                            case 5:
-                                # Change the status of wheter the boss has been defeated to True.
-                                boss_defeat[2] = True
-                                # Give the player experience for winning the combat.
-                                hero.exp += 21
-                                # Give the player money for winning the combat.
-                                hero.money += 15
-                            case 6:
-                                # Change the status of wheter the boss has been defeated to True.
-                                boss_defeat[3] = True
-                                # Give the player experience for winning the combat.
-                                hero.exp += 31
-                                # Give the player money for winning the combat.
-                                hero.money += 20
-                            case 7:
-                                # Change the status of wheter the boss has been defeated to True.
-                                boss_defeat[4] = True
-                                # Give the player experience for winning the combat.
-                                hero.exp += 41
-                        # Reward the player with potions.
-                        hero.potions += 3
-                        # Inform the player of how much money he has now.
-                        print ("You got {money}$ now.\n".format(money = hero.money))
-                        # If the player gets more than 10 potions then set the number of potions to 10
-                        if hero.potions > 10:
-                            hero.potions = 10
-                        # Check if the player leveled up and level him up using the level_up method.
-                        if hero.exp >= 10:
-                            hero.level_up()
-                        input("\nPress Enter to go back to the Village\n")
-                        clear()
-                case 2:
-                    clear()
-                    # If the player choose to use a potion we call the use_potion method.
-                    hero.use_potion() 
-                case _:
-                    # In case the player writes a number other than 1 or 2
-                    print("Please type only 1 or 2 on your keyboard to choose an option.")
-                    continue
-        except ValueError:
-            # In case the player writes a value that is not a number
-            print("Sorry we didn't get that please try again.")
+        combat = resolve_combat_round(hero, minion)
     # If the player has no more hp left then leave the combat logic.
     if hero.health == 0: 
         clear()
         return 0
+    if minion.health == 0:
+        del minion
+        match boss_level:
+            case 4:
+                # Change the status of wheter the boss has been defeated to True.
+                boss_defeat[1] = True
+                # Give the player experience for winning the combat.
+                hero.exp += 11
+                # Give the player money for winning the combat.
+                hero.money += 10
+            case 5:
+                # Change the status of wheter the boss has been defeated to True.
+                boss_defeat[2] = True
+                # Give the player experience for winning the combat.
+                hero.exp += 21
+                # Give the player money for winning the combat.
+                hero.money += 15
+            case 6:
+                # Change the status of wheter the boss has been defeated to True.
+                boss_defeat[3] = True
+                # Give the player experience for winning the combat.
+                hero.exp += 31
+                # Give the player money for winning the combat.
+                hero.money += 20
+            case 7:
+                # Change the status of wheter the boss has been defeated to True.
+                boss_defeat[4] = True
+                # Give the player experience for winning the combat.
+                hero.exp += 41
+        # Reward the player with potions.
+        hero.potions += 3
+        # Inform the player of how much money he has now.
+        print ("You got {money}$ now.\n".format(money = hero.money))
+        # If the player gets more than 10 potions then set the number of potions to 10
+        if hero.potions > 10:
+            hero.potions = 10
+        # Check if the player leveled up and level him up using the level_up method.
+        if hero.exp >= 10:
+            hero.level_up()
+        input("\nPress Enter to go back to the Village\n")
+        clear()
 
 # The stats function will show the player his stats and let him upgrade them if he wants to and if he has stat points available.
 def stats(hero):
@@ -746,10 +744,17 @@ def store(hero):
                 print("\nWe hope to have you back soon!")
                 input("Press Enter to go back to the Village.\n")
                 break
+            if potions_to_buy < 0:
+                print("\nThe value you wrote is not valid, please try again.\n")
+                input("Press Enter to go back to the Store.\n")
+                continue
             # We set a maximum amount of potions so that the player can't just buy them infinitely
             if potions_to_buy > 10: potions_to_buy = 10; print("\nYou can't carry more than 10 potions we will assume you want 10 potions\n")
             # If the player set an amount that is going to go over 10 potions we max out his number of potions to 10 instead without making him pay extra money.
-            if hero.potions + potions_to_buy > 10: potions_to_buy = potions_to_buy - hero.potions; print("\nYou don't have space on your inventory for that amount of potions, we will max out your potions to 10.\n")
+            available_space = max(0, 10 - hero.potions)
+            if potions_to_buy > available_space:
+                potions_to_buy = available_space
+                print("\nYou don't have space on your inventory for that amount of potions, we will max out your potions to 10.\n")
             # Check wheter the player has enough money to buy the requested potions.
             if (potions_to_buy * 5) > hero.money:
                 print("\nYou don't have enough money to buy that many potions, please select a lower number.\n")
@@ -954,4 +959,5 @@ U  \ V  V /  U|_____|  |_____|  \____|\_)-\___/  |_|  |_|  |_____|
     input("Press Enter to continue:")    
 
 # Start the game
-village()
+if __name__ == "__main__":
+    village()
